@@ -1,6 +1,10 @@
 # Do not track
 
 misc/
+backup-debloat/
+backups/
+Instructions
 *.ab
+*.zip
 package_list
-xx
+x

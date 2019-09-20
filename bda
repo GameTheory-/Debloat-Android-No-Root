@@ -1,0 +1,372 @@
+#!/bin/bash
+
+# ===== Variables
+VERSION="Backup and Debloat Android No Root v1.2"
+PROJECT_NAME="Backup and Debloat Android No Root"
+DESCRIPTION="Backup and Debloat Non Rooted Android"
+
+BASE=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
+THIS_SCRIPT=$BASE/$(basename $0)
+
+CONFIG_DIR=$BASE/configs
+BACKUPS_DIR=$BASE/backups
+PACKAGES_LIST=$CONFIG_DIR/package_list
+DOS2UNIX=$CONFIG_DIR/dos2unix
+ADB=$CONFIG_DIR/adb
+DESKTOP_SHORTCUT=/home/$(whoami)/.local/share/applications/backup-debloat-android.desktop
+ICON=$CONFIG_DIR/icon.svg
+
+UPDATE_URL="https://techstop.github.io/backup-and-debloat-android-no-root/"
+REPO_URL="https://github.com/GameTheory-/backup-and-debloat-android-no-root"
+
+# ===== ANSI color code variables
+BOLD="\e[1m"
+CYAN="\e[96m"
+BLUEBG="\e[104m"
+GREEN="\e[0;32m"
+HRED="\e[0;91m"
+WHITE="\e[97m"
+NC="\e[0m"
+EXPND="\e[K"
+
+# ===== make sure files have exec perms
+if [[ ! -x "$ADB" ]]; then
+	chmod +x "$ADB"
+fi
+if [[ ! -x "$DOS2UNIX" ]]; then
+	chmod +x "$DOS2UNIX"
+fi
+
+# ===== for centering strings
+ECHO_CENTER() {
+	printf "%*s\n" $((( ${#1} + $(tput cols) ) / 2)) "$1"
+}
+
+# ===== ECHO_CENTER variables go here
+NAME_TXT=$(ECHO_CENTER "$PROJECT_NAME")
+
+# ===== continue
+PRESS_ENTER() {
+	echo ""
+	echo -n -e "	${GREEN}Press Enter to continue${NC} "
+	read
+	clear
+}
+
+# ===== incorrect selection
+INCORRECT_SELECTION() {
+	echo -e "${HRED}Incorrect selection! Try again.${NC}"
+}
+
+# ===== PS3 variable
+PS3_VAR() {
+	echo ""
+	echo "Enter a selection: "
+}
+
+# ===== remove bloatware
+UNINSTALL_PACKAGES() {
+	"$ADB" shell pm list packages -f | grep -oP "(?<=package:).*" | sed 's/=/ = /g' > "$PACKAGES_LIST"
+	UNINSTALL=$(echo -e "${GREEN}Remove Bloatware${NC}")
+	QUIT=$(echo -e "${HRED}Quit${NC}")
+	PS3="$(PS3_VAR)"
+	readarray -t OPTIONS < "$PACKAGES_LIST"
+	select OPT in "${OPTIONS[@]}" "$UNINSTALL" "$QUIT"; do
+		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
+			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
+				LIST_PACKS=$(grep -oP "(?<== ).*" <<< $OPT | "$DOS2UNIX")
+				echo -e "${GREEN}$LIST_PACKS${NC}"
+				PACK_LIST+=("$LIST_PACKS")
+				break
+			done
+		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
+			clear
+			for plist in ${PACK_LIST[@]}; do
+				PACKS=$(echo "$plist" | "$DOS2UNIX")
+				read ADB_VAR < <("$ADB" shell pm uninstall -k --user 0 $PACKS)
+			done
+			if [[ "$ADB_VAR" == *Success* ]]; then
+				echo -e "${GREEN}Done!${NC}"
+			else
+				echo -e "${HRED}Could not remove 1 or more of your selected apps.${NC}"
+			fi
+			break
+		elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
+			clear
+			echo -e "${HRED}Aborted!${NC}"
+			break
+		else
+			echo -e "${HRED}Incorrect selection! Try again.${NC}"
+		fi
+	done
+	unset PACK_LIST
+}
+
+# ===== check if backups directory exists
+BACKUPS_DIR_EXISTS() {
+	if [[ ! -d "$BACKUPS_DIR" ]]; then
+		mkdir "$BACKUPS_DIR"
+	fi
+}
+
+# ===== backup user apps
+USER_APPS() {
+	BACKUPS_DIR_EXISTS
+	echo "1  -  Backup user apps with data"
+	echo "2  -  Backup user apps data only"
+	echo "3  -  Backup user apps with data + internal storage"
+	echo "4  -  Backup user apps data only + internal storage"
+	echo "0  -  Quit"
+	echo ""
+	read -ep "Enter selection: " BACKUP_U
+	echo ""
+	if [[ "$BACKUP_U" == 1 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -apk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	elif [[ "$BACKUP_U" == 2 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -noapk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	elif [[ "$BACKUP_U" == 3 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -apk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	elif [[ "$BACKUP_U" == 4 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -noapk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	else
+		echo -e "${HRED}Aborted!${NC}"
+	fi
+}
+
+# ===== full backup
+USER_SYS_APPS() {
+	BACKUPS_DIR_EXISTS
+	echo "1  -  Backup user & system apps with data"
+	echo "2  -  Backup user & system apps data only"
+	echo "3  -  Backup user & system apps with data + internal storage"
+	echo "4  -  Backup user & system apps data only + internal storage"
+	echo "0  -  Quit"
+	echo ""
+	read -ep "Enter selection: " BACKUP_U
+	echo ""
+	if [[ "$BACKUP_U" == 1 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -apk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	elif [[ "$BACKUP_U" == 2 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -noapk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	elif [[ "$BACKUP_U" == 3 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -apk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	elif [[ "$BACKUP_U" == 4 ]]; then
+		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+		read -ep "Enter name: " FNAME
+		"$ADB" backup -noapk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	else
+		echo -e "${HRED}Aborted!${NC}"
+	fi
+}
+
+# ===== backup user selected apps
+CUSTOM_APPS() {
+	BACKUPS_DIR_EXISTS
+	"$ADB" shell pm list packages -f | grep -oP "(?<=package:).*" | sed 's/=/ = /g' > "$PACKAGES_LIST"
+	CREATE_BACKUP=$(echo -e "${GREEN}Create Backup${NC}")
+	QUIT=$(echo -e "${HRED}Quit${NC}")
+	PS3="$(PS3_VAR)"
+	readarray -t OPTIONS < "$PACKAGES_LIST"
+	select OPT in "${OPTIONS[@]}" "$CREATE_BACKUP" "$QUIT"; do
+		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
+			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
+				LIST_PACKS=$(grep -oP "(?<== ).*" <<< $OPT | "$DOS2UNIX")
+				echo -e "${GREEN}$LIST_PACKS${NC}"
+				PACK_LIST+=("$LIST_PACKS")
+				break
+			done
+		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
+			clear
+			echo "1  -  Backup apps with data"
+			echo "2  -  Backup apps data only"
+			echo "0  -  Quit"
+			echo ""
+			read -ep "Enter selection: " BACKUP_U
+			echo ""
+			if [[ "$BACKUP_U" == 1 ]]; then
+				echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+				read -ep "Enter name: " FNAME
+				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab -apk ${PACK_LIST[@]}
+			elif [[ "$BACKUP_U" == 2 ]]; then
+				echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+				read -ep "Enter name: " FNAME
+				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab -noapk ${PACK_LIST[@]}
+			else
+				echo -e "${HRED}Aborted!${NC}"
+			fi
+			break
+		elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
+			clear
+			echo -e "${HRED}Aborted!${NC}"
+			break
+		else
+			echo -e "${HRED}Incorrect selection! Try again.${NC}"
+		fi
+	done
+	unset PACK_LIST
+}
+
+# ===== backup internal sd only
+INTERNAL_SD() {
+	BACKUPS_DIR_EXISTS
+	echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
+	read -ep "Enter name: " FNAME
+	"$ADB" backup -noapk -shared -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+}
+
+# ===== restore backup
+RESTORE_BACKUP() {
+	BACKUPS_DIR_EXISTS
+	if ls "$BACKUPS_DIR"/*.ab > /dev/null 2>&1; then
+		cd "$BACKUPS_DIR"
+		PROMPT="
+Choose a backup:"
+		OPTIONS=( *.ab )
+		QUIT=$(echo -e "${HRED}Quit${NC}")
+		PS3="$PROMPT "
+		echo ""
+		select OPT in "${OPTIONS[@]}" "$QUIT" ; do 
+			if (( REPLY == 1 + ${#OPTIONS[@]} )) ; then
+				clear
+				echo -e "${HRED}Aborted!${NC}"
+				break
+			elif (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )) ; then
+				clear
+				"$ADB" restore "$BACKUPS_DIR"/$OPT
+				break
+			else
+				echo -e "${HRED}Invalid selection. Try again.${NC}"
+			fi
+		done
+	else
+		echo -e "${HRED}There are no backups in the backups folder.${NC}"
+	fi
+}
+
+# ===== install android udev rules
+UDEV_RULES() {
+	echo -e "	${GREEN}${BOLD}Android Udev Rules${NC}"
+	echo -e "${GREEN}If your device is not being recognized when plugged to"
+	echo -e "usb, then you may be missing the '51-android.rules' file in"
+	echo -e "/etc/udev/rules.d directory.${NC}"
+	echo ""
+	echo "Install 51-android.rules?"
+	read -ep "(Y/n) $ " Y_UDEV
+	echo ""
+	if [[ -z "$Y_UDEV" || "$Y_UDEV" =~ ^([yY|[yY][eE][sS]]) ]]; then
+		sudo cp -f "$CONFIG_DIR"/51-android.rules /etc/udev/rules.d/51-android.rules
+		sudo chmod a+r /etc/udev/rules.d/51-android.rules
+		sudo service udev restart
+		if [[ -f /etc/udev/rules.d/51-android.rules ]]; then
+			echo -e "${GREEN}Done!${NC}"
+		else
+			echo -e "${HRED}Aborted! Could not install. Try manual installation.${NC}"
+		fi
+	else
+		echo -e "${HRED}Aborted!${NC}"
+	fi
+}
+
+# ===== check for update
+VISIT_ITG() {
+	echo ""
+	echo -e "${GREEN}Visit website?${NC}"
+	read -ep "(Y/n) $ " VISIT
+	if [[ -z "$VISIT" || "$VISIT" =~ ^([yY]|[yY][eE][sS]) ]]; then
+		if command -v xdg-open > /dev/null; then
+			xdg-open "$UPDATE_URL" > /dev/null 2>&1
+		elif command -v gnome-open > /dev/null; then
+			gnome-open "$UPDATE_URL" > /dev/null 2>&1
+		fi
+	fi
+	clear
+}
+CHECK_FOR_UPDATE() {
+	echo -e "${GREEN}Please wait...${NC}"
+	echo ""
+	SITE_VERSION=$(wget -q "$REPO_URL" -O - | grep -m 1 -o -P '.{0,0}Backup and Debloat Android No Root v.{0,3}')
+	clear
+	if [ "$VERSION" = "$SITE_VERSION" ]; then
+		echo -e "${GREEN}$VERSION"
+		echo ""
+		echo "No update available. Check again later."
+		echo ""
+		echo -e "For more info visit:${NC}"
+		echo -e "${CYAN}$UPDATE_URL${NC}"
+		VISIT_ITG
+	else
+		echo -e "${GREEN}Update available!"
+		echo ""
+		echo -e "To download the latest version go to:${NC}"
+		echo -e "${CYAN}$UPDATE_URL${NC}"
+		VISIT_ITG
+	fi
+}
+
+# ===== create desktop shortcut
+DESKTOP_SHORTCUT() {
+	echo "[Desktop Entry]" > "$DESKTOP_SHORTCUT"
+	echo "Type=Application" >> "$DESKTOP_SHORTCUT"
+	echo "Name=$PROJECT_NAME" >> "$DESKTOP_SHORTCUT"
+	echo "Comment=$DESCRIPTION" >> "$DESKTOP_SHORTCUT"
+	echo "Exec=\"$THIS_SCRIPT\"" >> "$DESKTOP_SHORTCUT"
+	echo "Icon=$ICON" >> "$DESKTOP_SHORTCUT"
+	echo "Categories=Development;" >> "$DESKTOP_SHORTCUT"
+	echo "Terminal=true" >> "$DESKTOP_SHORTCUT"
+
+	if [[ -f "$DESKTOP_SHORTCUT" ]]; then
+		echo -e "${GREEN}Desktop entry added for ${CYAN}${BOLD}$(whoami)${NC}"
+		echo -e "${GREEN}Check your apps menu for the shortcut.${NC}"
+	else
+		echo -e "${HRED}oops! Shortcut failed. Please try again.${NC}"
+	fi
+}
+
+# ===== menu
+SELECTION=
+until [ "$SELECTION" = "0" ]; do
+	clear
+	echo -e "${BLUEBG}${EXPND}${WHITE}${BOLD}$NAME_TXT${NC}"
+	echo ""
+	echo "	1  -  Backup User Apps"
+	echo "	2  -  Backup User & System Apps"
+	echo "	3  -  Choose Apps to Backup"
+	echo "	4  -  Backup Internal Storage"
+	echo "	5  -  Restore Backup"
+	echo "	6  -  Remove Bloatware"
+	echo "	7  -  Install 51-android.rules"
+	echo "	8  -  Check For Update"
+	echo "	9  -  Add Desktop Shortcut"
+	echo "	0  -  Exit"
+	echo ""
+	echo -n "	Enter selection: "
+	read SELECTION
+	echo ""
+	case $SELECTION in
+	    1 ) clear ; USER_APPS ; PRESS_ENTER ;;
+	    2 ) clear ; USER_SYS_APPS ; PRESS_ENTER ;;
+	    3 ) clear ; CUSTOM_APPS ; PRESS_ENTER ;;
+	    4 ) clear ; INTERNAL_SD ; PRESS_ENTER ;;
+	    5 ) clear ; RESTORE_BACKUP ; PRESS_ENTER ;;
+	    6 ) clear ; UNINSTALL_PACKAGES ; PRESS_ENTER ;;
+	    7 ) clear ; UDEV_RULES ; PRESS_ENTER ;;
+	    8 ) clear ; CHECK_FOR_UPDATE ; PRESS_ENTER ;;
+	    9 ) clear ; DESKTOP_SHORTCUT ; PRESS_ENTER ;;
+      0 ) clear ; exit ;;
+	    * ) clear ; INCORRECT_SELECTION ; PRESS_ENTER ;;
+	esac
+done
