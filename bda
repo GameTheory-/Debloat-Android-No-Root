@@ -83,7 +83,7 @@ UNINSTALL_PACKAGES() {
 			clear
 			for plist in ${PACK_LIST[@]}; do
 				PACKS=$(echo "$plist" | "$DOS2UNIX")
-				read ADB_VAR < <("$ADB" shell pm uninstall -k --user 0 $PACKS)
+				read ADB_VAR < <("$ADB" shell pm uninstall --user 0 $PACKS)
 			done
 			if [[ "$ADB_VAR" == *Success* ]]; then
 				echo -e "${GREEN}Done!${NC}"
