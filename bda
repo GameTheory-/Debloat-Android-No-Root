@@ -115,19 +115,19 @@ USER_APPS() {
 	if [[ "$BACKUP_U" == 1 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -apk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
 	elif [[ "$BACKUP_U" == 2 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -noapk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
 	elif [[ "$BACKUP_U" == 3 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -apk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
 	elif [[ "$BACKUP_U" == 4 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -noapk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
 	else
 		echo -e "${HRED}Aborted!${NC}"
 	fi
@@ -147,19 +147,19 @@ USER_SYS_APPS() {
 	if [[ "$BACKUP_U" == 1 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -apk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
 	elif [[ "$BACKUP_U" == 2 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -noapk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
 	elif [[ "$BACKUP_U" == 3 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -apk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
 	elif [[ "$BACKUP_U" == 4 ]]; then
 		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+		"$ADB" backup -noapk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
 	else
 		echo -e "${HRED}Aborted!${NC}"
 	fi
@@ -171,7 +171,7 @@ CUSTOM_APPS() {
 	CREATE_BACKUP=$(echo -e "${GREEN}Create Backup${NC}")
 	QUIT=$(echo -e "${HRED}Quit${NC}")
 	PS3="$(PS3_VAR)"
-	readarray -t OPTIONS < <("$ADB" shell pm list packages -f -s | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
+	readarray -t OPTIONS < <("$ADB" shell pm list packages -f | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
 	select OPT in "${OPTIONS[@]}" "$CREATE_BACKUP" "$QUIT"; do
 		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
 			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
@@ -190,11 +190,11 @@ CUSTOM_APPS() {
 			if [[ "$BACKUP_U" == 1 ]]; then
 				echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 				read -ep "Enter name: " FNAME
-				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab -apk ${PACK_LIST[@]}
+				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME".ab -apk ${PACK_LIST[@]}
 			elif [[ "$BACKUP_U" == 2 ]]; then
 				echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 				read -ep "Enter name: " FNAME
-				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab -noapk ${PACK_LIST[@]}
+				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME".ab -noapk ${PACK_LIST[@]}
 			else
 				echo -e "${HRED}Aborted!${NC}"
 			fi
@@ -215,7 +215,7 @@ INTERNAL_SD() {
 	BACKUPS_DIR_EXISTS
 	echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
 	read -ep "Enter name: " FNAME
-	"$ADB" backup -noapk -shared -nosystem -f "$BACKUPS_DIR"/"$FNAME"_"$RANDOM".ab
+	"$ADB" backup -noapk -shared -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
 }
 
 # ===== restore backup
