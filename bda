@@ -66,11 +66,10 @@ PS3_VAR() {
 
 # ===== remove bloatware
 UNINSTALL_PACKAGES() {
-	"$ADB" shell pm list packages -f -s | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?' > "$PACKAGES_LIST"
 	UNINSTALL=$(echo -e "${GREEN}Remove Bloatware${NC}")
 	QUIT=$(echo -e "${HRED}Quit${NC}")
 	PS3="$(PS3_VAR)"
-	readarray -t OPTIONS < "$PACKAGES_LIST"
+	readarray -t OPTIONS < <("$ADB" shell pm list packages -f -s | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
 	select OPT in "${OPTIONS[@]}" "$UNINSTALL" "$QUIT"; do
 		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
 			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
