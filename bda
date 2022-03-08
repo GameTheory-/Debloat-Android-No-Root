@@ -1,17 +1,15 @@
 #!/bin/bash
 
 # ===== Variables
-VERSION="Backup and Debloat Android No Root v1.2"
 PROJECT_NAME="Backup and Debloat Android No Root"
-DESCRIPTION="Backup and Debloat Non Rooted Android"
+VERSION="$PROJECT_NAME v1.2"
+DESCRIPTION="Backup and debloat non rooted Android devices"
 
 BASE=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
 THIS_SCRIPT=$BASE/$(basename $0)
 
 CONFIG_DIR=$BASE/configs
 BACKUPS_DIR=$BASE/backups
-PACKAGES_LIST=$CONFIG_DIR/package_list
-DOS2UNIX=$CONFIG_DIR/dos2unix
 ADB=$CONFIG_DIR/adb
 DESKTOP_SHORTCUT=/home/$(whoami)/.local/share/applications/backup-debloat-android.desktop
 ICON=$CONFIG_DIR/icon.svg
@@ -29,12 +27,9 @@ WHITE="\e[97m"
 NC="\e[0m"
 EXPND="\e[K"
 
-# ===== make sure files have exec perms
+# ===== make sure adb has exec permission
 if [[ ! -x "$ADB" ]]; then
 	chmod +x "$ADB"
-fi
-if [[ ! -x "$DOS2UNIX" ]]; then
-	chmod +x "$DOS2UNIX"
 fi
 
 # ===== for centering strings
@@ -64,30 +59,28 @@ PS3_VAR() {
 	echo "Enter a selection: "
 }
 
-# ===== remove bloatware
+# ===== uninstall applications
 UNINSTALL_PACKAGES() {
-	UNINSTALL=$(echo -e "${GREEN}Remove Bloatware${NC}")
-	QUIT=$(echo -e "${HRED}Quit${NC}")
+	UNINSTALL=$(echo -e "${GREEN}${BOLD}Uninstall Applications${NC}")
+	QUIT=$(echo -e "${HRED}${BOLD}Quit${NC}")
 	PS3="$(PS3_VAR)"
 	readarray -t OPTIONS < <("$ADB" shell pm list packages -f -s | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
 	select OPT in "${OPTIONS[@]}" "$UNINSTALL" "$QUIT"; do
 		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
 			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
-				LIST_PACKS=$(grep -oP "(?<== ).*" <<< $OPT | "$DOS2UNIX")
-				echo -e "${GREEN}$LIST_PACKS${NC}"
-				PACK_LIST+=("$LIST_PACKS")
+				echo -e "${GREEN}$OPT${NC}"
+				PACK_LIST+=("$OPT")
 				break
 			done
 		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
 			clear
 			for plist in ${PACK_LIST[@]}; do
-				PACKS=$(echo "$plist" | "$DOS2UNIX")
-				read ADB_VAR < <("$ADB" shell pm uninstall --user 0 $PACKS)
+				read ADB_VAR < <("$ADB" shell pm uninstall --user 0 "$plist")
 			done
 			if [[ "$ADB_VAR" == *Success* ]]; then
 				echo -e "${GREEN}Done!${NC}"
 			else
-				echo -e "${HRED}Could not remove 1 or more of your selected apps.${NC}"
+				echo -e "${HRED}Could not uninstall 1 or more of your selected apps.${NC}"
 			fi
 			break
 		elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
@@ -175,23 +168,21 @@ USER_SYS_APPS() {
 # ===== backup user selected apps
 CUSTOM_APPS() {
 	BACKUPS_DIR_EXISTS
-	"$ADB" shell pm list packages -f | grep -oP "(?<=package:).*" | sed 's/=/ = /g' > "$PACKAGES_LIST"
 	CREATE_BACKUP=$(echo -e "${GREEN}Create Backup${NC}")
 	QUIT=$(echo -e "${HRED}Quit${NC}")
 	PS3="$(PS3_VAR)"
-	readarray -t OPTIONS < "$PACKAGES_LIST"
+	readarray -t OPTIONS < <("$ADB" shell pm list packages -f -s | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
 	select OPT in "${OPTIONS[@]}" "$CREATE_BACKUP" "$QUIT"; do
 		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
 			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
-				LIST_PACKS=$(grep -oP "(?<== ).*" <<< $OPT | "$DOS2UNIX")
-				echo -e "${GREEN}$LIST_PACKS${NC}"
-				PACK_LIST+=("$LIST_PACKS")
+				echo -e "${GREEN}$OPT${NC}"
+				PACK_LIST+=("$OPT")
 				break
 			done
 		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
 			clear
-			echo "1  -  Backup apps with data"
-			echo "2  -  Backup apps data only"
+			echo "1  -  Backup app with data"
+			echo "2  -  Backup app data only"
 			echo "0  -  Quit"
 			echo ""
 			read -ep "Enter selection: " BACKUP_U
@@ -350,7 +341,7 @@ until [ "$SELECTION" = "0" ]; do
 	echo "	3  -  Choose Apps to Backup"
 	echo "	4  -  Backup Internal Storage"
 	echo "	5  -  Restore Backup"
-	echo "	6  -  Remove Bloatware"
+	echo "	6  -  Uninstall Apps"
 	echo "	7  -  Install 51-android.rules"
 	echo "	8  -  Check For Update"
 	echo "	9  -  Add Desktop Shortcut"
