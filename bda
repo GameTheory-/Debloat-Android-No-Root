@@ -269,7 +269,11 @@ UDEV_RULES() {
 	if [[ -z "$Y_UDEV" || "$Y_UDEV" =~ ^([yY|[yY][eE][sS]]) ]]; then
 		sudo cp -f "$CONFIG_DIR"/51-android.rules /etc/udev/rules.d/51-android.rules
 		sudo chmod a+r /etc/udev/rules.d/51-android.rules
-		sudo service udev restart
+		if [ $(cat /etc/os-release | grep -oP '(?<=ID_LIKE=).*') = debian ]; then
+			sudo service udev restart
+		else
+			sudo udevadm control --reload-rules && sudo udevadm trigger
+		fi
 		if [[ -f /etc/udev/rules.d/51-android.rules ]]; then
 			echo -e "${GREEN}Done!${NC}"
 		else
