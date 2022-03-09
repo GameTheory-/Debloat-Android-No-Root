@@ -1,21 +1,20 @@
 #!/bin/bash
 
 # ===== Variables
-PROJECT_NAME="Backup and Debloat Android No Root"
-VERSION="$PROJECT_NAME v1.2"
-DESCRIPTION="Backup and debloat non rooted Android devices"
+PROJECT_NAME="Debloat Android No Root"
+VERSION="$PROJECT_NAME v2.0"
+DESCRIPTION="Debloat non rooted Android devices"
 
 BASE=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
 THIS_SCRIPT=$BASE/$(basename $0)
 
 CONFIG_DIR=$BASE/configs
-BACKUPS_DIR=$BASE/backups
 ADB=$CONFIG_DIR/adb
-DESKTOP_SHORTCUT=/home/$(whoami)/.local/share/applications/backup-debloat-android.desktop
+DESKTOP_SHORTCUT=/home/$(whoami)/.local/share/applications/debloat-android.desktop
 ICON=$CONFIG_DIR/icon.svg
 
-UPDATE_URL="https://techstop.github.io/backup-and-debloat-android-no-root/"
-REPO_URL="https://github.com/GameTheory-/backup-and-debloat-android-no-root"
+UPDATE_URL="https://techstop.github.io/debloat-android-no-root/"
+REPO_URL="https://github.com/GameTheory-/debloat-android-no-root"
 
 # ===== ANSI color code variables
 BOLD="\e[1m"
@@ -59,8 +58,93 @@ PS3_VAR() {
 	echo "Enter a selection: "
 }
 
+# ===== disable applications
+DISABLE_PACKAGES() {
+	echo -e "${GREEN}Please Wait...${NC}"
+	echo ""
+	DISABLE=$(echo -e "${GREEN}${BOLD}Disable Applications${NC}")
+	QUIT=$(echo -e "${HRED}${BOLD}Quit${NC}")
+	PS3="$(PS3_VAR)"
+	readarray -t OPTIONS < <("$ADB" shell pm list packages -f -s | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
+	select OPT in "${OPTIONS[@]}" "$DISABLE" "$QUIT"; do
+		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
+			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
+				LIST_PACKS=$(grep -oP "(?<== ).*" <<< $OPT)
+				echo -e "${GREEN}$LIST_PACKS${NC}"
+				PACK_LIST+=("$LIST_PACKS")
+				break
+			done
+		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
+			clear
+			echo -e "${GREEN}Please Wait...${NC}"
+			echo ""
+			for plist in ${PACK_LIST[@]}; do
+				read ADB_VAR < <("$ADB" shell pm disable-user --user 0 "$plist")
+			done
+			if [[ "$ADB_VAR" == *disabled-user* ]]; then
+				echo -e "${GREEN}Done!${NC}"
+			else
+				echo -e "${HRED}Could not disable 1 or more of your selected apps.${NC}"
+			fi
+			break
+		elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
+			clear
+			echo -e "${HRED}Aborted!${NC}"
+			break
+		else
+			echo -e "${HRED}Incorrect selection! Try again.${NC}"
+		fi
+	done
+	unset PACK_LIST
+}
+
+# =====  re-enable applications
+REENABLE_PACKAGES() {
+  echo -e "${GREEN}Please Wait...${NC}"
+  echo ""
+	REENABLE=$(echo -e "${GREEN}${BOLD}Re-enable Applications${NC}")
+	QUIT=$(echo -e "${HRED}${BOLD}Quit${NC}")
+	PS3="$(PS3_VAR)"
+	readarray -t OPTIONS < <("$ADB" shell pm list packages -d | grep -oP "(?<=package:).*")
+	if [ ! -z $OPTIONS ]; then
+    select OPT in "${OPTIONS[@]}" "$REENABLE" "$QUIT"; do
+      if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
+        while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
+          echo -e "${GREEN}$OPT${NC}"
+          PACK_LIST+=("$OPT")
+          break
+        done
+      elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
+        clear
+        echo -e "${GREEN}Please Wait...${NC}"
+				echo ""
+        for plist in ${PACK_LIST[@]}; do
+          read ADB_VAR < <("$ADB" shell pm enable "$plist")
+        done
+        if [[ "$ADB_VAR" == *enabled* ]]; then
+          echo -e "${GREEN}Done!${NC}"
+        else
+          echo -e "${HRED}Could not re-enable 1 or more of your selected apps.${NC}"
+        fi
+        break
+      elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
+        clear
+        echo -e "${HRED}Aborted!${NC}"
+        break
+      else
+        echo -e "${HRED}Incorrect selection! Try again.${NC}"
+      fi
+    done
+    unset PACK_LIST
+  else
+    echo -e "${HRED}There are no previously disabled apps to re-enable.${NC}"
+  fi
+}
+
 # ===== uninstall applications
 UNINSTALL_PACKAGES() {
+	echo -e "${GREEN}Please Wait...${NC}"
+	echo ""
 	UNINSTALL=$(echo -e "${GREEN}${BOLD}Uninstall Applications${NC}")
 	QUIT=$(echo -e "${HRED}${BOLD}Quit${NC}")
 	PS3="$(PS3_VAR)"
@@ -68,12 +152,15 @@ UNINSTALL_PACKAGES() {
 	select OPT in "${OPTIONS[@]}" "$UNINSTALL" "$QUIT"; do
 		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
 			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
-				echo -e "${GREEN}$OPT${NC}"
-				PACK_LIST+=("$OPT")
+				LIST_PACKS=$(grep -oP "(?<== ).*" <<< $OPT)
+				echo -e "${GREEN}$LIST_PACKS${NC}"
+				PACK_LIST+=("$LIST_PACKS")
 				break
 			done
 		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
 			clear
+			echo -e "${GREEN}Please Wait...${NC}"
+			echo ""
 			for plist in ${PACK_LIST[@]}; do
 				read ADB_VAR < <("$ADB" shell pm uninstall --user 0 "$plist")
 			done
@@ -94,157 +181,54 @@ UNINSTALL_PACKAGES() {
 	unset PACK_LIST
 }
 
-# ===== check if backups directory exists
-BACKUPS_DIR_EXISTS() {
-	if [[ ! -d "$BACKUPS_DIR" ]]; then
-		mkdir "$BACKUPS_DIR"
-	fi
-}
-
-# ===== backup user apps
-USER_APPS() {
-	BACKUPS_DIR_EXISTS
-	echo "1  -  Backup user apps with data"
-	echo "2  -  Backup user apps data only"
-	echo "3  -  Backup user apps with data + internal storage"
-	echo "4  -  Backup user apps data only + internal storage"
-	echo "0  -  Quit"
+# ===== re-install applications
+REINSTALL_PACKAGES() {
+	echo -e "${GREEN}Please Wait...${NC}"
 	echo ""
-	read -ep "Enter selection: " BACKUP_U
-	echo ""
-	if [[ "$BACKUP_U" == 1 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
-	elif [[ "$BACKUP_U" == 2 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -noshared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
-	elif [[ "$BACKUP_U" == 3 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
-	elif [[ "$BACKUP_U" == 4 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -shared -all -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
-	else
-		echo -e "${HRED}Aborted!${NC}"
-	fi
-}
-
-# ===== full backup
-USER_SYS_APPS() {
-	BACKUPS_DIR_EXISTS
-	echo "1  -  Backup user & system apps with data"
-	echo "2  -  Backup user & system apps data only"
-	echo "3  -  Backup user & system apps with data + internal storage"
-	echo "4  -  Backup user & system apps data only + internal storage"
-	echo "0  -  Quit"
-	echo ""
-	read -ep "Enter selection: " BACKUP_U
-	echo ""
-	if [[ "$BACKUP_U" == 1 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
-	elif [[ "$BACKUP_U" == 2 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -noshared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
-	elif [[ "$BACKUP_U" == 3 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -apk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
-	elif [[ "$BACKUP_U" == 4 ]]; then
-		echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-		read -ep "Enter name: " FNAME
-		"$ADB" backup -noapk -shared -all -system -f "$BACKUPS_DIR"/"$FNAME".ab
-	else
-		echo -e "${HRED}Aborted!${NC}"
-	fi
-}
-
-# ===== backup user selected apps
-CUSTOM_APPS() {
-	BACKUPS_DIR_EXISTS
-	CREATE_BACKUP=$(echo -e "${GREEN}Create Backup${NC}")
-	QUIT=$(echo -e "${HRED}Quit${NC}")
+	REINSTALL=$(echo -e "${GREEN}${BOLD}Re-install Applications${NC}")
+	QUIT=$(echo -e "${HRED}${BOLD}Quit${NC}")
 	PS3="$(PS3_VAR)"
-	readarray -t OPTIONS < <("$ADB" shell pm list packages -f | grep -oP "(?<=package:).*" | sed 's?^\(.*\)=?\1 = ?')
-	select OPT in "${OPTIONS[@]}" "$CREATE_BACKUP" "$QUIT"; do
-		if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
-			while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
-				echo -e "${GREEN}$OPT${NC}"
-				PACK_LIST+=("$OPT")
+	readarray -t OPTIONS < <(diff <("$ADB" shell pm list packages) <("$ADB" shell pm list packages -u) | grep -oP '(?<=package:).*')
+	if [ ! -z $OPTIONS ]; then
+		select OPT in "${OPTIONS[@]}" "$REINSTALL" "$QUIT"; do
+			if (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); then
+				while (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )); do
+					echo -e "${GREEN}$OPT${NC}"
+					PACK_LIST+=("$OPT")
+					break
+				done
+			elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
+				clear
+				echo -e "${GREEN}Please Wait...${NC}"
+				echo ""
+				for plist in ${PACK_LIST[@]}; do
+					packs=$("$ADB" shell pm dump "$plist" | grep -oP '(?<=path: ).*')
+					read ADB_VAR < <("$ADB" shell pm install -r --user 0 "$packs")
+				done
+				if [[ "$ADB_VAR" == *Success* ]]; then
+					echo -e "${GREEN}Done!${NC}"
+				else
+					echo -e "${HRED}Could not re-install 1 or more of your selected apps.${NC}"
+				fi
 				break
-			done
-		elif (( REPLY == 1 + ${#OPTIONS[@]} )); then
-			clear
-			echo "1  -  Backup app with data"
-			echo "2  -  Backup app data only"
-			echo "0  -  Quit"
-			echo ""
-			read -ep "Enter selection: " BACKUP_U
-			echo ""
-			if [[ "$BACKUP_U" == 1 ]]; then
-				echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-				read -ep "Enter name: " FNAME
-				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME".ab -apk ${PACK_LIST[@]}
-			elif [[ "$BACKUP_U" == 2 ]]; then
-				echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-				read -ep "Enter name: " FNAME
-				"$ADB" backup -f "$BACKUPS_DIR"/"$FNAME".ab -noapk ${PACK_LIST[@]}
-			else
-				echo -e "${HRED}Aborted!${NC}"
-			fi
-			break
-		elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
-			clear
-			echo -e "${HRED}Aborted!${NC}"
-			break
-		else
-			echo -e "${HRED}Incorrect selection! Try again.${NC}"
-		fi
-	done
-	unset PACK_LIST
-}
-
-# ===== backup internal sd only
-INTERNAL_SD() {
-	BACKUPS_DIR_EXISTS
-	echo -e "${GREEN}Name your backup. Do not use spaces in the name.${NC}"
-	read -ep "Enter name: " FNAME
-	"$ADB" backup -noapk -shared -nosystem -f "$BACKUPS_DIR"/"$FNAME".ab
-}
-
-# ===== restore backup
-RESTORE_BACKUP() {
-	BACKUPS_DIR_EXISTS
-	if ls "$BACKUPS_DIR"/*.ab > /dev/null 2>&1; then
-		cd "$BACKUPS_DIR"
-		PROMPT="
-Choose a backup:"
-		OPTIONS=( *.ab )
-		QUIT=$(echo -e "${HRED}Quit${NC}")
-		PS3="$PROMPT "
-		echo ""
-		select OPT in "${OPTIONS[@]}" "$QUIT" ; do 
-			if (( REPLY == 1 + ${#OPTIONS[@]} )) ; then
+			elif (( REPLY == 2 + ${#OPTIONS[@]} )); then
 				clear
 				echo -e "${HRED}Aborted!${NC}"
 				break
-			elif (( REPLY > 0 && REPLY <= ${#OPTIONS[@]} )) ; then
-				clear
-				"$ADB" restore "$BACKUPS_DIR"/$OPT
-				break
 			else
-				echo -e "${HRED}Invalid selection. Try again.${NC}"
+				echo -e "${HRED}Incorrect selection! Try again.${NC}"
 			fi
 		done
+		unset PACK_LIST
 	else
-		echo -e "${HRED}There are no backups in the backups folder.${NC}"
-	fi
+    echo -e "${HRED}There are no previously un-installed apps to re-install.${NC}"
+  fi
+}
+
+# =====  get device properties/info
+DEVICE_INFO() {
+  var=$("$ADB" shell getprop)
+  echo -e "${GREEN}${BOLD}$var${NC}"
 }
 
 # ===== install android udev rules
@@ -292,7 +276,7 @@ VISIT_ITG() {
 CHECK_FOR_UPDATE() {
 	echo -e "${GREEN}Please wait...${NC}"
 	echo ""
-	SITE_VERSION=$(wget -q "$REPO_URL" -O - | grep -m 1 -o -P '.{0,0}Backup and Debloat Android No Root v.{0,3}')
+	SITE_VERSION=$(wget -q "$REPO_URL" -O - | grep -m 1 -o -P '.{0,0}Debloat Android No Root v.{0,3}')
 	clear
 	if [ "$VERSION" = "$SITE_VERSION" ]; then
 		echo -e "${GREEN}$VERSION"
@@ -336,30 +320,28 @@ until [ "$SELECTION" = "0" ]; do
 	clear
 	echo -e "${BLUEBG}${EXPND}${WHITE}${BOLD}$NAME_TXT${NC}"
 	echo ""
-	echo "	1  -  Backup User Apps"
-	echo "	2  -  Backup User & System Apps"
-	echo "	3  -  Choose Apps to Backup"
-	echo "	4  -  Backup Internal Storage"
-	echo "	5  -  Restore Backup"
-	echo "	6  -  Uninstall Apps"
-	echo "	7  -  Install 51-android.rules"
-	echo "	8  -  Check For Update"
-	echo "	9  -  Add Desktop Shortcut"
+	echo "	1  -  Disable Apps"
+	echo "	2  -  Re-enable Apps"
+	echo "	3  -  Uninstall Apps"
+	echo "	4  -  Re-install Apps"
+	echo "	5  -  Device Info"
+	echo "	6  -  Install 51-android.rules"
+	echo "	7  -  Check For Updates"
+	echo "	00 -  Add Desktop Shortcut"
 	echo "	0  -  Exit"
 	echo ""
 	echo -n "	Enter selection: "
 	read SELECTION
 	echo ""
 	case $SELECTION in
-	    1 ) clear ; USER_APPS ; PRESS_ENTER ;;
-	    2 ) clear ; USER_SYS_APPS ; PRESS_ENTER ;;
-	    3 ) clear ; CUSTOM_APPS ; PRESS_ENTER ;;
-	    4 ) clear ; INTERNAL_SD ; PRESS_ENTER ;;
-	    5 ) clear ; RESTORE_BACKUP ; PRESS_ENTER ;;
-	    6 ) clear ; UNINSTALL_PACKAGES ; PRESS_ENTER ;;
-	    7 ) clear ; UDEV_RULES ; PRESS_ENTER ;;
-	    8 ) clear ; CHECK_FOR_UPDATE ; PRESS_ENTER ;;
-	    9 ) clear ; DESKTOP_SHORTCUT ; PRESS_ENTER ;;
+			1 ) clear ; DISABLE_PACKAGES ; PRESS_ENTER ;;
+			2 ) clear ; REENABLE_PACKAGES ; PRESS_ENTER ;;
+	    3 ) clear ; UNINSTALL_PACKAGES ; PRESS_ENTER ;;
+	    4 ) clear ; REINSTALL_PACKAGES ; PRESS_ENTER ;;
+	    5 ) clear ; DEVICE_INFO ; PRESS_ENTER ;;
+	    6 ) clear ; UDEV_RULES ; PRESS_ENTER ;;
+	    7 ) clear ; CHECK_FOR_UPDATE ; PRESS_ENTER ;;
+	    00 ) clear ; DESKTOP_SHORTCUT ; PRESS_ENTER ;;
       0 ) clear ; exit ;;
 	    * ) clear ; INCORRECT_SELECTION ; PRESS_ENTER ;;
 	esac
